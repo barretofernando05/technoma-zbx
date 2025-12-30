@@ -592,7 +592,7 @@
                                     <div>
                                         <h2 className="text-3xl font-bold uppercase tracking-tight text-slate-900">Informe de Incidentes</h2>
                                         <div className="text-sm text-slate-500 mt-2 space-y-1">
-                                            <p>{selectedHostId ? `Host: ${hosts.find(h=>h.hostid===selectedHostId)?.name}` : selectedGroupId ? `Grupo: ${hostGroups.find(g=>g.groupid===selectedGroupId)?.name}` : 'Infraestructura Global'}</p>
+                                            <p>{selectedHostId ? `Host: ${hosts.find(h=>h.hostid===selectedHostId)?.name}` : selectedGroupId ? `Cliente: ${hostGroups.find(g=>g.groupid===selectedGroupId)?.name}` : 'Infraestructura Global'}</p>
                                             <p className="flex items-center gap-1"><Calendar className="w-3 h-3"/> {new Date(dateFrom).toLocaleString()} &rarr; {new Date(dateTo).toLocaleString()}</p>
                                         </div>
                                     </div>
@@ -667,7 +667,7 @@
                                 </table>
                                 
                                 <div className="mt-12 pt-4 border-t border-slate-200 text-[10px] text-slate-400 text-center">
-                                    Informe generado automáticamente mediante API Zabbix
+                                    Derechos reservados TECHNOMA SAECA 2026
                                 </div>
                             </div>
                         ) : (
@@ -725,4 +725,5 @@
         root.render(<ZabbixDashboard />);
     </script>
 </body>
+
 </html>
