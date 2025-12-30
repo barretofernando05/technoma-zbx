@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Informe Gerencial Zabbix</title>
+    
+    <!-- Librerías -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* Estilos optimizados para IMPRESIÓN / PDF */
+        @media print {
+            @page { margin: 0.5cm; size: A4; }
+            body { 
+                background: white; 
+                -webkit-print-color-adjust: exact !important; /* Forza impresión de colores de fondo */
+                print-color-adjust: exact !important;
+            }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            .shadow-xl { box-shadow: none !important; border: 1px solid #ddd; }
+            /* Ocultar placeholders de logos vacíos al imprimir */
+            .logo-placeholder { display: none !important; }
+            /* Evitar cortes de página en medio de filas */
+            tr { break-inside: avoid; page-break-inside: avoid; }
+            .report-container { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-slate-900">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- ICONOS ---
+        const Icon = ({ p, c }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={c}>{p}</svg>;
+        
+        const Activity = ({ className }) => <Icon c={className} p={<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>} />;
+        const CheckCircle = ({ className }) => <Icon c={className} p={<><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></>} />;
+        const RefreshCw = ({ className }) => <Icon c={className} p={<><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></>} />;
+        const LogOut = ({ className }) => <Icon c={className} p={<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></>} />;
+        const FileText = ({ className }) => <Icon c={className} p={<><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></>} />;
+        const Copy = ({ className }) => <Icon c={className} p={<><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></>} />;
+        const Layout = ({ className }) => <Icon c={className} p={<><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="3" x2="21" y1="9" y2="9"/><line x1="9" x2="9" y1="21" y2="9"/></>} />;
+        const Filter = ({ className }) => <Icon c={className} p={<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>} />;
+        const Calendar = ({ className }) => <Icon c={className} p={<><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></>} />;
+        const Server = ({ className }) => <Icon c={className} p={<><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></>} />;
+        const ArrowRight = ({ className }) => <Icon c={className} p={<><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></>} />;
+        const Printer = ({ className }) => <Icon c={className} p={<><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></>} />;
+        const Upload = ({ className }) => <Icon c={className} p={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></>} />;
+
+
+        // --- DATOS MOCK ---
+        const MOCK_GROUPS = [{ groupid: '10', name: 'Bases de Datos' }, { groupid: '11', name: 'Servidores Web' }];
+        const MOCK_HOSTS = [{ hostid: '100', name: 'DB-01' }, { hostid: '101', name: 'WEB-01' }];
+        const MOCK_ALERTS = [
+            { eventid: '1', name: 'CPU Crítico DB-01', severity: '5', clock: (Date.now()/1000)-300, r_eventid: '0', hosts: [{name:'DB-01'}], groups: [{groupid:'10'}]},
+            { eventid: '2', name: 'Servicio Web Caído', severity: '4', clock: (Date.now()/1000)-8000, r_eventid: '99', r_clock: (Date.now()/1000)-7000, hosts: [{name:'WEB-01'}], groups: [{groupid:'11'}]}
+        ];
+        const SEVERITY_MAP = {
+            0: { label: 'N/A', short: 'N/A', color: '#64748b', bg: '#f1f5f9' },
+            1: { label: 'INFO', short: 'INF', color: '#2563eb', bg: '#eff6ff' },
+            2: { label: 'WARN', short: 'WRN', color: '#ca8a04', bg: '#fefce8' },
+            3: { label: 'AVG', short: 'AVG', color: '#ea580c', bg: '#fff7ed' },
+            4: { label: 'HIGH', short: 'HGH', color: '#dc2626', bg: '#fef2f2' },
+            5: { label: 'DIS', short: 'DIS', color: '#be123c', bg: '#fff1f2' },
+        };
+        const SEVERITY_KEYS = [1, 2, 3, 4, 5];
+
+        // --- APP ---
+        const ZabbixDashboard = () => {
+            const [isConnected, setIsConnected] = useState(false);
+            const [loading, setLoading] = useState(false);
+            const [alerts, setAlerts] = useState([]);
+            const [hostGroups, setHostGroups] = useState([]);
+            const [hosts, setHosts] = useState([]); 
+            const [error, setError] = useState(null);
+            const [lastUpdated, setLastUpdated] = useState(null);
+            const [viewMode, setViewMode] = useState('report'); 
+            const reportRef = useRef(null);
+            
+            // Logos
+            const [companyLogo, setCompanyLogo] = useState(null);
+            const [clientLogo, setClientLogo] = useState(null);
+            const companyLogoInput = useRef(null);
+            const clientLogoInput = useRef(null);
+            
+            // Login State
+            const [url, setUrl] = useState('https://zabbix.example.com/api_jsonrpc.php');
+            const [authMethod, setAuthMethod] = useState('token');
+            const [user, setUser] = useState('');
+            const [password, setPassword] = useState('');
+            const [manualToken, setManualToken] = useState('');
+            const [authToken, setAuthToken] = useState(null);
+            const [isDemo, setIsDemo] = useState(false);
+
+            // Filters
+            const [selectedGroupId, setSelectedGroupId] = useState('');
+            const [selectedHostId, setSelectedHostId] = useState('');
+            const [statusFilter, setStatusFilter] = useState('all'); // all, active, resolved
+            const [selectedSeverities, setSelectedSeverities] = useState(['2', '3', '4', '5']);
+            
+            // Fechas
+            const defaultEnd = new Date();
+            const defaultStart = new Date();
+            defaultStart.setDate(defaultEnd.getDate() - 7);
+            
+            const [dateFrom, setDateFrom] = useState(defaultStart.toISOString().slice(0, 16));
+            const [dateTo, setDateTo] = useState(defaultEnd.toISOString().slice(0, 16));
+
+            // --- IMAGE HANDLER ---
+            const handleImageUpload = (e, setter) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => setter(reader.result);
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            // --- API CORE ---
+            const zabbixRequest = async (method, params, tokenToUse = null) => {
+                const requestBody = {
+                    jsonrpc: '2.0',
+                    method: method,
+                    params: params,
+                    id: Math.floor(Math.random() * 1000),
+                };
+
+                const headers = { 'Content-Type': 'application/json' };
+
+                if (tokenToUse) {
+                    headers['Authorization'] = `Bearer ${tokenToUse}`;
+                }
+
+                console.log(`[REQ] ${method}`, requestBody);
+
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify(requestBody),
+                    });
+
+                    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+                    
+                    const data = await response.json();
+                    console.log(`[RES] ${method}`, data);
+                    
+                    if (data.error) {
+                        console.error("Params rechazados:", params);
+                        throw new Error(data.error.data || data.error.message);
+                    }
+                    
+                    return data.result;
+                } catch (err) {
+                    console.error(`[ERR] ${method}`, err.message);
+                    throw err;
+                }
+            };
+
+            const handleConnect = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                setError(null);
+                setIsDemo(false);
+
+                try {
+                    let token = null;
+
+                    if (authMethod === 'password') {
+                        console.log('Iniciando autenticación User/Pass');
+                        token = await zabbixRequest('user.login', { user, password }, null);
+                    } else {
+                        console.log('Usando Token manual');
+                        token = manualToken;
+                    }
+
+                    if (!token) throw new Error("No se pudo obtener un token válido.");
+
+                    setAuthToken(token);
+                    setIsConnected(true);
+                    
+                    await fetchHostGroups(token);
+                    await fetchHosts(token); 
+                    await fetchAlerts(token, '', '', selectedSeverities, statusFilter);
+
+                } catch (err) {
+                    setError(`Error: ${err.message}`);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const fetchHostGroups = async (token) => {
+                try {
+                    const groups = await zabbixRequest('hostgroup.get', {
+                        output: ['groupid', 'name'],
+                        sortfield: 'name'
+                    }, token);
+                    setHostGroups(groups || []);
+                } catch (err) { 
+                    console.error("Error cargando grupos", err.message); 
+                }
+            };
+
+            const fetchHosts = async (token, groupId = null) => {
+                try {
+                    const params = {
+                        output: ['hostid', 'name'],
+                        sortfield: 'name',
+                        limit: 5000
+                    };
+                    if (groupId) params.groupids = [groupId];
+
+                    const result = await zabbixRequest('host.get', params, token);
+                    
+                    if (result && result.length > 0) {
+                        setHosts(result);
+                    } else {
+                        setHosts([]);
+                        console.warn('0 Hosts encontrados.');
+                    }
+                } catch (err) {
+                    console.error('Error cargando hosts', err.message);
+                }
+            };
+
+            const fetchAlerts = async (token = authToken, groupId = selectedGroupId, hostId = selectedHostId, severities = selectedSeverities, status = statusFilter) => {
+                setLoading(true);
+                try {
+                    const dFrom = new Date(dateFrom);
+                    const dTo = new Date(dateTo);
+                    if (isNaN(dFrom.getTime()) || isNaN(dTo.getTime())) throw new Error("Fechas inválidas");
+                    
+                    const timeFrom = Math.floor(dFrom.getTime() / 1000);
+                    const timeTo = Math.floor(dTo.getTime() / 1000);
+
+                    const params = {
+                        output: 'extend',
+                        source: 0, 
+                        object: 0,
+                        value: 1,  
+                        sortfield: ['eventid'],
+                        sortorder: 'DESC',
+                        time_from: timeFrom,
+                        time_till: timeTo
+                    };
+
+                    if (groupId) params.groupids = [groupId];
+                    if (hostId) params.hostids = [hostId];
+
+                    const events = await zabbixRequest('event.get', params, token);
+                    
+                    if (!events || events.length === 0) {
+                        setAlerts([]);
+                        setLoading(false);
+                        return;
+                    }
+
+                    let filteredEvents = events.filter(e => {
+                        if (!severities.includes(e.severity)) return false;
+                        const isResolved = e.r_eventid !== '0';
+                        if (status === 'active' && isResolved) return false;
+                        if (status === 'resolved' && !isResolved) return false;
+                        return true;
+                    });
+
+                    if (filteredEvents.length === 0) {
+                        setAlerts([]);
+                        setLoading(false);
+                        return;
+                    }
+
+                    const r_eventids = filteredEvents
+                        .filter(e => e.r_eventid !== '0')
+                        .map(e => e.r_eventid);
+                    
+                    let recoveryMap = {}; 
+                    
+                    if (r_eventids.length > 0) {
+                        const r_events_data = await zabbixRequest('event.get', {
+                            eventids: r_eventids,
+                            output: ['eventid', 'clock'],
+                            source: 0,
+                            object: 0,
+                            value: 0 
+                        }, token);
+                        
+                        if (r_events_data) {
+                            r_events_data.forEach(re => {
+                                recoveryMap[re.eventid] = re.clock;
+                            });
+                        }
+                    }
+
+                    const triggerIds = [...new Set(filteredEvents.map(e => e.objectid))];
+                    
+                    const triggers = await zabbixRequest('trigger.get', {
+                        triggerids: triggerIds,
+                        output: ['triggerid', 'description'],
+                        selectHosts: ['name', 'hostid'],
+                        preservekeys: true 
+                    }, token);
+
+                    const enrichedAlerts = filteredEvents.map(e => {
+                        const trigger = triggers[e.objectid];
+                        const r_clock = recoveryMap[e.r_eventid] || 0; 
+                        
+                        return {
+                            eventid: e.eventid,
+                            name: e.name || (trigger ? trigger.description : 'Desconocido'), 
+                            severity: e.severity,
+                            clock: e.clock,
+                            r_eventid: e.r_eventid,
+                            r_clock: r_clock,
+                            hosts: trigger && trigger.hosts ? trigger.hosts : [{name: 'N/A'}]
+                        };
+                    });
+
+                    setAlerts(enrichedAlerts);
+                    setLastUpdated(new Date());
+
+                } catch (err) {
+                    console.error(err);
+                    setError('Error procesando datos: ' + err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const toggleSeverity = (sev) => {
+                const s = sev.toString();
+                let newSeverities;
+                if (selectedSeverities.includes(s)) {
+                    newSeverities = selectedSeverities.filter(item => item !== s);
+                } else {
+                    newSeverities = [...selectedSeverities, s];
+                }
+                setSelectedSeverities(newSeverities);
+            };
+
+            const handleRefresh = () => {
+                if (isDemo) filterMockData(selectedGroupId, selectedHostId, selectedSeverities, statusFilter);
+                else fetchAlerts(authToken, selectedGroupId, selectedHostId, selectedSeverities, statusFilter);
+            }
+
+            const handleGroupChange = (gid) => {
+                setSelectedGroupId(gid);
+                setSelectedHostId(''); 
+                if (isDemo) {
+                    filterMockData(gid, '', selectedSeverities, statusFilter);
+                } else {
+                    fetchHosts(authToken, gid);
+                }
+            };
+
+            const handlePrint = () => {
+                window.print();
+            };
+
+            const startDemo = () => {
+                setIsDemo(true); setIsConnected(true); 
+                setHostGroups(MOCK_GROUPS);
+                setHosts(MOCK_HOSTS);
+                setAlerts(MOCK_ALERTS); setLastUpdated(new Date());
+            };
+            
+            const filterMockData = (gid, hid, sevs, status) => {
+                 let filtered = MOCK_ALERTS.filter(a => sevs.includes(a.severity.toString()));
+                 if(gid) filtered = filtered.filter(a => a.groups?.some(g => g.groupid === gid));
+                 if (status === 'active') filtered = filtered.filter(p => p.r_eventid === '0');
+                 if (status === 'resolved') filtered = filtered.filter(p => p.r_eventid !== '0');
+                 setAlerts(filtered);
+            };
+
+            const copyReport = () => {
+                if(!reportRef.current) return;
+                const range = document.createRange(); range.selectNode(reportRef.current);
+                window.getSelection().removeAllRanges(); window.getSelection().addRange(range);
+                document.execCommand('copy'); window.getSelection().removeAllRanges();
+                alert("Tabla copiada al portapapeles. Pégalo en Word/Excel.");
+            };
+            
+            const stats = useMemo(() => {
+                const active = alerts.filter(a => a.r_eventid === '0').length;
+                const resolved = alerts.filter(a => a.r_eventid !== '0').length;
+                return { 
+                    total: alerts.length, 
+                    critical: alerts.filter(a => a.severity >= 4).length,
+                    warning: alerts.filter(a => a.severity == 2 || a.severity == 3).length,
+                    active,
+                    resolved
+                };
+            }, [alerts]);
+            
+            const formatTime = (ts) => new Date(ts * 1000).toLocaleString('es-ES');
+            const getSevStyle = (s) => SEVERITY_MAP[s] || SEVERITY_MAP[0];
+
+            // --- VISTAS ---
+            if (!isConnected) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center p-4 font-sans text-slate-800 bg-slate-50">
+                        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border border-slate-100">
+                            <div className="text-center mb-6">
+                                <div className="bg-slate-900 w-14 h-14 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg">
+                                    <FileText className="text-white w-7 h-7" />
+                                </div>
+                                <h1 className="text-xl font-bold text-slate-900">Zabbix Reporter</h1>
+                            </div>
+                            
+                            <form onSubmit={handleConnect} className="space-y-4">
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase ml-1">URL del Servidor</label>
+                                    <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} 
+                                        className={`w-full px-4 py-2 rounded-lg bg-slate-50 border text-sm outline-none focus:ring-2 focus:ring-blue-500 ${!url.endsWith('api_jsonrpc.php') ? 'border-yellow-400' : 'border-slate-200'}`} 
+                                        placeholder="https://.../api_jsonrpc.php" required />
+                                </div>
+
+                                {/* TABS DE AUTENTICACIÓN */}
+                                <div className="flex bg-slate-100 p-1 rounded-lg mb-2">
+                                    <button type="button" onClick={() => setAuthMethod('token')} className={`flex-1 text-xs font-bold py-1.5 rounded-md transition-all ${authMethod === 'token' ? 'bg-white shadow text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}>API Token</button>
+                                    <button type="button" onClick={() => setAuthMethod('password')} className={`flex-1 text-xs font-bold py-1.5 rounded-md transition-all ${authMethod === 'password' ? 'bg-white shadow text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}>Usuario / Clave</button>
+                                </div>
+
+                                {authMethod === 'password' ? (
+                                    <>
+                                        <input type="text" value={user} onChange={(e) => setUser(e.target.value)} className="w-full px-4 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Usuario" required />
+                                        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Contraseña" required />
+                                    </>
+                                ) : (
+                                    <div>
+                                        <input type="password" value={manualToken} onChange={(e) => setManualToken(e.target.value)} className="w-full px-4 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Pegar API Token aquí..." required />
+                                    </div>
+                                )}
+
+                                {error && <div className="text-red-600 text-xs p-3 bg-red-50 rounded border border-red-100 font-medium">{error}</div>}
+                                
+                                <button type="submit" disabled={loading} className="w-full bg-slate-900 text-white font-bold py-3 rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50">
+                                    {loading ? 'Conectando...' : (authMethod === 'token' ? 'Usar Token' : 'Iniciar Sesión')}
+                                </button>
+                            </form>
+                            <div className="mt-4 pt-4 border-t border-slate-100 text-center">
+                                <button onClick={startDemo} className="text-xs text-blue-600 hover:underline font-bold">Probar Demo (Sin conexión)</button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // --- VISTA PRINCIPAL (Dashboard) ---
+            return (
+                <div className="min-h-screen bg-gray-100 font-sans text-slate-900 pb-12">
+                    {/* Header */}
+                    <div className="bg-slate-900 text-white sticky top-0 z-50 shadow-md no-print px-4 py-3 flex justify-between items-center">
+                        <div className="flex gap-4 items-center">
+                            <h1 className="font-bold hidden sm:block">Zabbix Report</h1>
+                            <div className="flex bg-slate-800 rounded p-1">
+                                <button onClick={() => setViewMode('report')} className={`px-3 py-1 text-xs font-bold rounded flex gap-2 ${viewMode === 'report' ? 'bg-white text-slate-900' : 'text-slate-400'}`}><FileText className="w-4 h-4"/> Word</button>
+                                <button onClick={() => setViewMode('dashboard')} className={`px-3 py-1 text-xs font-bold rounded flex gap-2 ${viewMode === 'dashboard' ? 'bg-white text-slate-900' : 'text-slate-400'}`}><Layout className="w-4 h-4"/> Web</button>
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            {viewMode === 'report' && (
+                                <>
+                                    <button onClick={handlePrint} className="bg-emerald-600 px-3 py-1 text-xs font-bold rounded flex gap-1 items-center hover:bg-emerald-500 transition-colors">
+                                        <Printer className="w-4 h-4"/> Imprimir / PDF
+                                    </button>
+                                    <button onClick={copyReport} className="bg-blue-600 px-3 py-1 text-xs font-bold rounded flex gap-1 items-center hover:bg-blue-500 transition-colors">
+                                        <Copy className="w-4 h-4"/> Copiar
+                                    </button>
+                                </>
+                            )}
+                            <button onClick={() => setIsConnected(false)} className="p-2 text-red-400 hover:bg-white/10 rounded"><LogOut className="w-5 h-5"/></button>
+                        </div>
+                    </div>
+
+                    {/* Filters Bar - MULTI LINE FOR BETTER FIT */}
+                    <div className="bg-white border-b p-3 sticky top-[56px] z-40 no-print shadow-sm">
+                        <div className="max-w-7xl mx-auto flex flex-wrap gap-4 items-end text-sm">
+                            
+                            {/* GROUP FILTER */}
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase">Grupo de Host</span>
+                                <select value={selectedGroupId} onChange={e=>handleGroupChange(e.target.value)} className="bg-slate-50 border rounded px-2 py-1.5 text-xs font-medium w-48 focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <option value="">-- Todos los Grupos --</option>
+                                    {hostGroups.map(g=><option key={g.groupid} value={g.groupid}>{g.name}</option>)}
+                                </select>
+                            </div>
+
+                            {/* HOST FILTER */}
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase">Host (Opcional)</span>
+                                <select value={selectedHostId} onChange={e=>setSelectedHostId(e.target.value)} className="bg-slate-50 border rounded px-2 py-1.5 text-xs font-medium w-48 focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <option value="">-- Todos los Hosts --</option>
+                                    {hosts.map(h=><option key={h.hostid} value={h.hostid}>{h.name}</option>)}
+                                </select>
+                            </div>
+
+                            {/* STATUS FILTER (NEW) */}
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase">Estado</span>
+                                <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="bg-slate-50 border rounded px-2 py-1.5 text-xs font-medium w-32 focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <option value="all">Todos</option>
+                                    <option value="active">Solo Vigentes</option>
+                                    <option value="resolved">Solo Resueltos</option>
+                                </select>
+                            </div>
+
+                            {/* DATE FROM */}
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase">Desde</span>
+                                <input type="datetime-local" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} className="bg-slate-50 border rounded px-2 py-1.5 text-xs font-medium w-36 focus:ring-2 focus:ring-blue-500 outline-none" />
+                            </div>
+
+                            {/* DATE TO */}
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase">Hasta</span>
+                                <input type="datetime-local" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="bg-slate-50 border rounded px-2 py-1.5 text-xs font-medium w-36 focus:ring-2 focus:ring-blue-500 outline-none" />
+                            </div>
+
+                            {/* SEVERITY - INDEPENDENT CHECKBOXES */}
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase">Severidades</span>
+                                <div className="flex gap-1">
+                                    {SEVERITY_KEYS.map(sev => {
+                                        const isSelected = selectedSeverities.includes(sev.toString());
+                                        const style = SEVERITY_MAP[sev];
+                                        return (
+                                            <button
+                                                key={sev}
+                                                onClick={() => toggleSeverity(sev)}
+                                                className={`px-2 py-1.5 text-[10px] font-bold rounded border transition-all ${isSelected ? 'shadow-sm opacity-100 ring-1 ring-slate-300' : 'opacity-40 grayscale border-slate-200'}`}
+                                                style={{ 
+                                                    backgroundColor: isSelected ? style.bg : '#f8fafc',
+                                                    color: isSelected ? style.color : '#94a3b8',
+                                                    borderColor: isSelected ? style.color.replace('text', 'border') : '#e2e8f0'
+                                                }}
+                                                title={style.label}
+                                            >
+                                                {style.short}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <button onClick={handleRefresh} className="ml-auto bg-slate-900 text-white px-4 py-2 rounded shadow hover:bg-slate-800 transition-colors flex items-center gap-2 font-bold text-xs h-fit self-end mb-0.5">
+                                <RefreshCw className={`w-3 h-3 ${loading?'animate-spin':''}`}/>
+                                ACTUALIZAR
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Content */}
+                    <div className="max-w-5xl mx-auto mt-8 px-4 report-container">
+                        {viewMode === 'report' ? (
+                            <div ref={reportRef} className="bg-white p-12 shadow-xl min-h-[29.7cm] print:shadow-none">
+                                {/* LOGOS HEADER */}
+                                <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-4">
+                                    {/* Company Logo */}
+                                    <div className="group relative" onClick={() => companyLogoInput.current.click()}>
+                                        {companyLogo ? (
+                                            <img src={companyLogo} className="h-16 object-contain" alt="Mi Empresa" />
+                                        ) : (
+                                            <div className="h-16 w-48 bg-slate-50 border-2 border-dashed border-slate-200 rounded flex items-center justify-center text-xs text-slate-400 cursor-pointer hover:bg-slate-100 logo-placeholder gap-2">
+                                                <Upload className="w-4 h-4"/> Logo Proveedor
+                                            </div>
+                                        )}
+                                        <input type="file" ref={companyLogoInput} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, setCompanyLogo)} />
+                                    </div>
+
+                                    {/* Client Logo */}
+                                    <div className="group relative" onClick={() => clientLogoInput.current.click()}>
+                                        {clientLogo ? (
+                                            <img src={clientLogo} className="h-16 object-contain" alt="Cliente" />
+                                        ) : (
+                                            <div className="h-16 w-48 bg-slate-50 border-2 border-dashed border-slate-200 rounded flex items-center justify-center text-xs text-slate-400 cursor-pointer hover:bg-slate-100 logo-placeholder gap-2">
+                                                <Upload className="w-4 h-4"/> Logo Cliente
+                                            </div>
+                                        )}
+                                        <input type="file" ref={clientLogoInput} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, setClientLogo)} />
+                                    </div>
+                                </div>
+
+                                <div className="border-b-2 border-slate-800 pb-6 mb-8 flex justify-between items-end">
+                                    <div>
+                                        <h2 className="text-3xl font-bold uppercase tracking-tight text-slate-900">Informe de Incidentes</h2>
+                                        <div className="text-sm text-slate-500 mt-2 space-y-1">
+                                            <p>{selectedHostId ? `Host: ${hosts.find(h=>h.hostid===selectedHostId)?.name}` : selectedGroupId ? `Grupo: ${hostGroups.find(g=>g.groupid===selectedGroupId)?.name}` : 'Infraestructura Global'}</p>
+                                            <p className="flex items-center gap-1"><Calendar className="w-3 h-3"/> {new Date(dateFrom).toLocaleString()} &rarr; {new Date(dateTo).toLocaleString()}</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-xs text-slate-500 uppercase font-bold">Generado el</p>
+                                        <p className="font-bold text-slate-900">{new Date().toLocaleString()}</p>
+                                    </div>
+                                </div>
+
+                                <div className="mb-8 p-6 bg-slate-50 rounded-lg border border-slate-200">
+                                    <h3 className="text-xs font-bold uppercase text-slate-400 mb-4 tracking-wider">Resumen del Periodo</h3>
+                                    <div className="flex justify-around text-center divide-x divide-slate-200">
+                                        <div className="px-4"><span className="block text-4xl font-bold text-slate-900">{stats.total}</span><span className="text-[10px] uppercase text-slate-500 font-bold tracking-wide">Total Incidentes</span></div>
+                                        <div className="px-4"><span className="block text-4xl font-bold text-red-600">{stats.critical}</span><span className="text-[10px] uppercase text-slate-500 font-bold tracking-wide">Críticos / Alta</span></div>
+                                        <div className="px-4"><span className="block text-4xl font-bold text-yellow-600">{stats.warning}</span><span className="text-[10px] uppercase text-slate-500 font-bold tracking-wide">Advertencias</span></div>
+                                        
+                                        {/* Lógica condicional para mostrar contadores según el filtro de estado */}
+                                        {statusFilter !== 'active' && (
+                                            <div className="px-4">
+                                                <span className="block text-4xl font-bold text-emerald-600">{stats.resolved}</span>
+                                                <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wide">Resueltos</span>
+                                            </div>
+                                        )}
+                                        
+                                        {statusFilter !== 'resolved' && (
+                                            <div className="px-4">
+                                                <span className="block text-4xl font-bold text-slate-600">{stats.active}</span>
+                                                <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wide">Vigentes</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <table className="w-full text-left text-sm border-collapse">
+                                    <thead>
+                                        <tr className="border-b-2 border-slate-900">
+                                            <th className="py-2 pr-4 font-bold text-slate-900 w-24">Severidad</th>
+                                            <th className="py-2 px-4 font-bold text-slate-900">Detalle del Incidente</th>
+                                            <th className="py-2 pl-4 font-bold text-slate-900 w-48 text-right">Fechas</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {alerts.length > 0 ? alerts.map(a => {
+                                            const s = getSevStyle(a.severity);
+                                            const isResolved = a.r_eventid !== '0';
+                                            return <tr key={a.eventid} className={`border-b border-slate-100 hover:bg-slate-50/50 break-inside-avoid ${isResolved ? 'bg-slate-50/30' : ''}`}>
+                                                <td className="py-3 pr-4 font-bold align-top" style={{color:s.color}}>{s.label}</td>
+                                                <td className="py-3 px-4 align-top">
+                                                    <div className="flex items-start justify-between">
+                                                        <div className="font-bold text-slate-800">{a.name}</div>
+                                                        {isResolved && <span className="ml-2 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wide border border-emerald-200">Resuelto</span>}
+                                                    </div>
+                                                    <div className="text-xs text-slate-500 mt-0.5">Host: {a.hosts?.[0]?.name || 'N/A'}</div>
+                                                </td>
+                                                <td className="py-3 pl-4 text-right align-top whitespace-nowrap">
+                                                    <div className="text-slate-800 font-medium">Inicio: {formatTime(a.clock)}</div>
+                                                    {isResolved && a.r_clock > 0 && (
+                                                        <div className="text-emerald-600 text-xs mt-1 flex items-center justify-end gap-1">
+                                                            <CheckCircle className="w-3 h-3"/> Fin: {formatTime(a.r_clock)}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            </tr>;
+                                        }) : (
+                                            <tr>
+                                                <td colSpan="3" className="py-12 text-center text-slate-400 italic bg-slate-50/50 rounded-b-lg">
+                                                    No se encontraron incidentes en este periodo con los filtros seleccionados.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                                
+                                <div className="mt-12 pt-4 border-t border-slate-200 text-[10px] text-slate-400 text-center">
+                                    Informe generado automáticamente mediante API Zabbix
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="bg-white p-4 rounded shadow-sm border-l-4 border-slate-800">
+                                        <div className="text-xs font-bold text-slate-400 uppercase">Total Periodo</div>
+                                        <div className="text-3xl font-bold">{stats.total}</div>
+                                    </div>
+                                    <div className="bg-white p-4 rounded shadow-sm border-l-4 border-red-500">
+                                        <div className="text-xs font-bold text-slate-400 uppercase">Críticos</div>
+                                        <div className="text-3xl font-bold text-red-600">{stats.critical}</div>
+                                    </div>
+                                    <div className="bg-white p-4 rounded shadow-sm border-l-4 border-emerald-500 flex justify-between items-center">
+                                        <div><div className="text-xs font-bold text-slate-400 uppercase">Estado</div><div className="text-xl font-bold text-slate-700">{stats.critical>0?'Atención':'Estable'}</div></div>
+                                        {stats.critical>0?<Activity className="text-red-500 w-8 h-8"/>:<CheckCircle className="text-emerald-500 w-8 h-8"/>}
+                                    </div>
+                                </div>
+                                <div className="bg-white rounded shadow-sm overflow-hidden border border-slate-100">
+                                    <div className="px-4 py-3 bg-slate-50 border-b font-bold text-sm text-slate-700 flex justify-between items-center">
+                                        <span>Alertas ({alerts.length})</span>
+                                        <span className="text-xs font-normal text-slate-500">Mostrando {new Date(dateFrom).toLocaleDateString()} - {new Date(dateTo).toLocaleDateString()}</span>
+                                    </div>
+                                    <div className="divide-y divide-slate-100">
+                                        {alerts.map(a => {
+                                            const isResolved = a.r_eventid !== '0';
+                                            return (
+                                            <div key={a.eventid} className={`p-4 flex justify-between items-center hover:bg-slate-50 transition-colors ${isResolved ? 'bg-slate-50/40' : ''}`}>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="font-bold text-sm text-slate-800">{a.name}</div>
+                                                        {isResolved && <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-600 text-[9px] font-bold border border-emerald-200">OK</span>}
+                                                    </div>
+                                                    <div className="text-xs text-slate-500 flex items-center gap-2 mt-1">
+                                                        <Server className="w-3 h-3"/> {a.hosts?.[0]?.name} 
+                                                        <span className="text-slate-300">|</span> 
+                                                        {formatTime(a.clock)}
+                                                        {isResolved && <><ArrowRight className="w-3 h-3 text-slate-400"/> {formatTime(a.r_clock)}</>}
+                                                    </div>
+                                                </div>
+                                                <div className={`px-2 py-1 text-[10px] font-bold uppercase rounded border ${getSevStyle(a.severity).color.replace('text','border')} bg-white text-center min-w-[80px]`}>{getSevStyle(a.severity).label}</div>
+                                            </div>
+                                        )})}
+                                    </div>
+                                    {alerts.length===0 && <div className="p-12 text-center text-slate-400 text-sm">Sin datos para mostrar.</div>}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ZabbixDashboard />);
+    </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  zabbix-web:
+    build: .
+    container_name: zabbix-reporte-gerencial
+    ports:
+      - "8080:80" # Abre en http://localhost:8080
+    restart: always
